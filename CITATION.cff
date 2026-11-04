@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this code or these records, please cite the accompanying manuscript."
+title: "MARIVISION: a pre-registered study of resolution-preserving tiled detection on SeaClips"
+authors:
+  - family-names: Korupoju
+    given-names: Anil Kumar
+repository-code: "https://github.com/<user>/marivision"
+license: MIT
+date-released: "2026-11-04"

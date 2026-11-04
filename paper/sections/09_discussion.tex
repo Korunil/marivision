@@ -1,0 +1,20 @@
+\section{Discussion}\label{sec:discussion}
+
+\subsection{Lessons}
+\begin{enumerate}
+\item \textbf{Pre-declare secondaries, not only primaries.} The unrouted detector was declared as a secondary endpoint before TEST, so its result (38.16) can be reported. Equally, it cannot replace the primary after the fact.
+\item \textbf{Check that a validation class represents TEST before choosing per-class components on it.} A single VAL video decided the ANIMAL routing, and TEST disagreed by 9 to 31 AP per seed.
+\item \textbf{Run several seeds before architectural decisions, not only at the end.} One seed led four gates; it was the most favourable seed on VAL and the least favourable on TEST.
+\item \textbf{Compute the significance threshold before TEST.} With the published standard deviations and $n = 3$, a significant difference from TransVOD++ needed a mean near 40. Knowing this beforehand fixed the claim language.
+\item \textbf{Prove long runs before starting them.} Synthetic self-tests and GPU smoke runs caught every pipeline fault we met before a multi-hour job started.
+\end{enumerate}
+
+\subsection{Limitations and threats to validity}
+\begin{itemize}
+\item \textbf{Statistical power.} Three seeds, compared against published summary statistics rather than per-seed values, give a Welch test with low power.
+\item \textbf{Two pipelines.} The baselines were produced by the benchmark authors, and our numbers by our pycocotools-based evaluator. The protocol matches as far as it is documented: IoU 0.3, seven classes, original-image boxes and all TEST frames. Our R50 reproduction is 2--4 points below the published R50, so the evaluator does not appear to favour our models; the same-pipeline difference is the more conservative comparison.
+\item \textbf{Shared routing source.} The routed system uses one R50 model for all seeds, so its standard deviation understates the variance of the full system.
+\item \textbf{Reuse of VAL.} VAL-based gates reused the same nine videos many times; TEST is the only independent check.
+\item \textbf{Cost.} Tiled inference costs 17 forward passes per frame, about 2\,s on an RTX 3060. Real-time use would require a cheaper tiling or a lighter backbone.
+\item \textbf{Robustness.} The robustness results depend on the Albumentations version, and the version used by the benchmark authors is not stated.
+\end{itemize}

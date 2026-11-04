@@ -1,0 +1,8 @@
+Camera-based detection of small surface objects is a prerequisite for situational awareness on autonomous and crewed vessels.
+We report a pre-registered study on the SeaClips video benchmark, run on a single consumer GPU (12\,GB).
+Starting from the benchmark's Deformable-DETR R50 recipe, we replaced the backbone with ConvNeXt-B, trained on a mix of full frames and native-resolution tiles, and detected with a 17-tile scheme.
+Every decision gate had a pass rule written before its run; the TEST label file was hash-locked and scored once, after all models were frozen.
+Over three seeds, the pre-declared system reached $35.29 \pm 1.09$ TEST \mapthree{}. This is a higher mean than the published TransVOD++ ($31.95 \pm 3.28$) and Deformable-DETR Swin-B ($31.28 \pm 3.72$) baselines, but the differences are not significant under the benchmark's one-tailed Welch test with Bonferroni correction ($p = 0.106$ and $0.098$); the difference from Deformable-DETR R50 ($22.86 \pm 0.91$) is significant ($p = 0.0001$).
+A per-class routing of ANIMAL detections to the R50 baseline, chosen on validation data, lowered TEST \mapthree{} in every seed; the unrouted detector, a pre-declared secondary, reached $38.16 \pm 1.41$.
+Tiled inference accounted for 13--16 points over each model's own full-frame output, mainly through small objects; SHIP detection remained weak and unstable across seeds.
+We report fourteen negative or partial results, five properties of SeaClips that limit what its validation split can show about its test split, and the cost of the approach (about 2\,s per frame). Code and pre-registration records are released; data, predictions and weights are not.

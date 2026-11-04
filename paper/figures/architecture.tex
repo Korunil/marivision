@@ -1,0 +1,34 @@
+% Fig. 1 -- system architecture (TikZ, absolute layout). Compiled inside main.tex.
+\begin{tikzpicture}[
+  font=\footnotesize, >=Stealth,
+  box/.style={draw, rounded corners=2pt, align=center, minimum height=11mm, text width=26mm, inner sep=3pt, fill=white},
+  data/.style={box, fill=gray!10},
+  net/.style={box, fill=blue!7},
+  route/.style={box, fill=orange!12, text width=34mm},
+  lab/.style={font=\scriptsize\itshape, text=black!65}]
+% row 1: tiled detector
+\node[data] (frame) at (0,0)    {Video frame\\(native, e.g.\ $1920{\times}1080$)};
+\node[box]  (tiles) at (3.4,0)  {17 tiles: Stage B full frame + Stage C $4{\times}4$ windows of $640{\times}360$};
+\node[box]  (warp)  at (6.8,0)  {Each tile resized to $640{\times}640$ (R0 transform)};
+\node[net]  (bb)    at (10.2,0) {ConvNeXt-B (IN-22k), stem + stage 1 frozen};
+\node[net]  (detr)  at (13.6,0) {Deformable-DETR, 4 levels, 300 queries (COCO init.)};
+% row 2: merge, routing, output
+\node[box]   (merge)  at (13.6,-2.6) {Class-aware merge of 17 tile outputs (top 100 / frame)};
+\node[route] (router) at (8.0,-2.6)  {Per-class source (VAL, seed 42):\\ANIMAL $\leftarrow$ R0\\6 other classes $\leftarrow$ tiled};
+\node[data]  (out)    at (2.2,-2.6)  {Detections\\primary: routed};
+% row 3: R0 branch
+\node[box, fill=gray!4] (r0) at (8.0,-5.0) {R0: Deformable-DETR R50, full frame only (epoch 15)};
+% arrows
+\draw[->] (frame) -- (tiles); \draw[->] (tiles) -- (warp); \draw[->] (warp) -- (bb); \draw[->] (bb) -- (detr);
+\draw[->] (detr) -- (merge);
+\draw[->] (merge) -- node[lab, above]{all classes} (router);
+\draw[->] (router) -- (out);
+\draw[->] (r0) -- node[lab, right]{ANIMAL boxes} (router);
+\draw[->, dashed] (frame.south) |- (r0.west);
+\draw[->, dashed, black!55] (merge.north west) ++(0.3,0) |- (2.2,-1.25) -- node[lab, right, pos=0.4]{secondary: unrouted} (out.north);
+% training note
+\node[draw, dashed, rounded corners=2pt, align=left, text width=150mm, inner sep=4pt] (train) at (6.8,-7.0) {%
+\textbf{Training (per sample):} with $p=0.5$ the full frame, otherwise one of the 16 Stage C windows at native resolution; boxes kept
+if $\geq 50\%$ visible. AdamW $2{\times}10^{-4}$ (backbone $2{\times}10^{-5}$), weight decay $10^{-4}$, clip 0.1, 15 epochs,
+LR $\times 0.1$ after epochs 11 and 14, batch 2, fp32. Three seeds (42/43/44); the final epoch is used, no VAL selection.};
+\end{tikzpicture}

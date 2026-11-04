@@ -1,0 +1,26 @@
+\section{Properties of SeaClips that limit validation}\label{sec:dataset}
+
+We measured five properties of SeaClips that bound what its validation split can say about its test split. They were measured from annotations, from the public counts in the benchmark supplement, or from model outputs on TRAIN and VAL.
+
+\paragraph{1. Two TEST classes cannot be validated as they appear on TEST}
+LEISURE\_VEHICLE has no VAL boxes. Its 600 TRAIN boxes show two physical objects in two videos from one camera in sunny, calm conditions, and none is COCO-small; on TEST, 82\% of the class (9{,}912 of 12{,}115 boxes) is small. All 253 VAL ANIMAL boxes are in one video (median $\sqrt{\text{area}}$ 9.4\,px; 22\% below 8\,px). The ANIMAL routing decision taken on that video reversed on TEST.
+
+\paragraph{2. Validation level does not predict test level}
+R50 scores 0.42 on VAL and 19--21 on TEST. Across our three seeds, the VAL ranking (0.516, 0.437, 0.411 for seeds 42, 44, 43) was the reverse of the unrouted TEST ranking (36.59, 38.56, 39.33). Single-seed VAL comparisons are therefore weak evidence for TEST.
+
+\paragraph{3. VAL scores swing within a run}
+At the full learning rate, VAL mAP on our selection subset moved by about $\pm 0.06$ between epochs while the training loss fell smoothly. It settled to within about 0.02 after the first learning-rate decay. Selecting checkpoints on VAL is correspondingly noisy.
+
+\paragraph{4. Many objects are a few pixels wide at the standard input}
+After the benchmark's $640 \times 640$ resize, the median TRAIN ANIMAL box is 4.7\,px across, and the 10th percentile is 2.4\,px. A third of TRAIN ANIMAL boxes are below 8\,px even at native resolution. This favours native-resolution inference. It may also teach a shortcut ("a few-pixel blob is ANIMAL"); our models labelled buoys and clutter as ANIMAL on VAL.
+
+\paragraph{5. The dominant error is classification, not localisation}
+On VAL, an oracle analysis of the tile-trained R50 (0.380 macro AP30) bounds the gain from removing each error type. Removing background false positives gives 0.402; also removing part-of-object detections, 0.414; also removing wrong-class detections, 0.583. On TEST, seed-to-seed variance concentrated in vessel types (SHIP 17.6--42.3), while MARINE\_MARKER was stable.
+
+\paragraph{Recommendations}
+\begin{itemize}
+\item Report several seeds, and bootstrap intervals over videos for VAL.
+\item Do not select per-class components on VAL classes drawn from a single video.
+\item Where TRAIN allows, hold out TRAIN videos for classes that VAL does not represent.
+\item Report latency next to accuracy for native-resolution methods.
+\end{itemize}

@@ -1,0 +1,16 @@
+\section{Related work}\label{sec:related}
+
+\paragraph{Maritime electro-optical benchmarks}
+Prasad et al.\ \citep{prasad2017smd} surveyed electro-optical maritime detection and tracking and introduced the Singapore Maritime Dataset. MODS \citep{bovcon2022mods} targets obstacle detection and segmentation from unmanned surface vehicles. SeaDronesSee \citep{varga2022seadronessee} addresses detection of people in open water from aerial views. SeaClips \citep{denk2026seaclips} provides long, densely annotated surface-level video clips with a test split of 18 unseen videos and reports multi-seed baselines with significance tests. We follow its protocol and compare with its published numbers.
+
+\paragraph{Detectors}
+DETR \citep{carion2020detr} formulated detection as set prediction; Deformable DETR \citep{zhu2021deformable} added multi-scale deformable attention, which shortens training and helps small objects. The strongest SeaClips baselines use the Swin Transformer \citep{liu2021swin} as backbone, either per frame or within the video detector TransVOD \citep{zhou2023transvod}. We use ConvNeXt \citep{liu2022convnext} through the timm library \citep{wightman2019timm}, because it fits the memory budget of a 12\,GB GPU at the benchmark resolution.
+
+\paragraph{Small objects and tiled inference}
+Slicing a high-resolution image into overlapping tiles, detecting per tile and merging the results is a common way to recover small objects. SAHI \citep{akyon2022sahi} is a widely used example, and Rekavandi et al.\ \citep{rekavandi2022guide} review small-object detection for maritime surveillance. We study tile training and tiled inference under a fixed tile schedule and measure both their accuracy and their cost.
+
+\paragraph{Rare classes}
+Repeat-factor sampling \citep{gupta2019lvis} oversamples images that contain rare classes; we test it as one remedy for a collapsing class (Section~\ref{sec:negative}).
+
+\paragraph{Evaluation practice}
+Pre-registration separates confirmatory from exploratory analysis \citep{nosek2018prereg}. In machine learning, seed variance can be as large as the differences between methods \citep{bouthillier2021variance}. We combine both: every gate is pre-registered, the final comparison uses three seeds, and we report how decisions made on one seed fared on three.

@@ -1,0 +1,75 @@
+\section{Results on TEST}\label{sec:results}
+
+\subsection{Primary and secondary endpoints}
+The pre-declared system scored $35.29 \pm 1.09$ \mapthree{} over three seeds (35.29, 36.39 and 34.21). Table~\ref{tab:primary} gives the pre-registered comparisons. The mean is higher than all published baselines; only the difference from Deformable-DETR R50 is significant after correction.
+
+\begin{table}[t]
+\centering
+\caption{Primary endpoint: one-tailed Welch test of the three-seed routed system against each published mean $\pm$ SD ($n=3$); Bonferroni $\alpha = 0.0167$.}
+\label{tab:primary}
+\small
+\begin{tabular}{lrrrrc}
+\toprule
+Comparison & $\Delta$ & $t$ & df & $p$ & Sig. \\
+\midrule
+TransVOD++ Swin-B ($31.95 \pm 3.28$) & $+3.34$ & 1.68 & 2.44 & 0.106 & no \\
+Def.\ DETR Swin-B ($31.28 \pm 3.72$) & $+4.01$ & 1.79 & 2.34 & 0.098 & no \\
+Def.\ DETR R50 ($22.86 \pm 0.91$) & $+12.43$ & 15.14 & 3.87 & 0.0001 & yes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The unrouted tiled model, a pre-declared secondary, scored $38.16 \pm 1.41$ (36.59, 39.33 and 38.56). Routing ANIMAL to R0 lowered \mapthree{} in every seed, by 1.30, 2.94 and 4.35 points. Exploratory Welch tests of the unrouted model give $p = 0.032$ against TransVOD++ and $p = 0.035$ against Deformable-DETR Swin-B. Both are above the corrected threshold, and neither was a pre-registered hypothesis.
+
+\subsection{Variants, object size and other metrics}
+Table~\ref{tab:variants} reports all variants. Each seed's own full-frame (Stage~B) output averages 23.78; tiled inference adds 13--16 points per seed. Small-object AP of the tiled model (31.10) is above every published value; the highest published is 24.98, for RT-DETR. Our R50 reproduction is 2--4 points below the published R50, so our evaluation pipeline does not appear to favour our models. The same-pipeline difference between the routed system and our R0 epoch 15 is $+14.6$.
+
+\begin{table*}[t]
+\centering
+\caption{TEST results. Ours: mean of three seeds. R0: our R50 reproduction (single run). Paper rows are taken from the SeaClips paper and its supplement (own pipeline).}
+\label{tab:variants}
+\small
+\resizebox{\textwidth}{!}{\begin{tabular}{lrrrrrr}
+\toprule
+System & \mapthree{} & Small & Medium & Large & mAPca@0.3 & mAP@0.5 \\
+\midrule
+Ours, routed (primary) & 35.29 & 28.25 & 68.64 & 86.83 & 57.13 & 22.98 \\
+Ours, unrouted (secondary) & 38.16 & 31.10 & 68.64 & 86.83 & 57.39 & 26.75 \\
+Ours, full frame only & 23.78 & -- & -- & -- & -- & -- \\
+R0 epoch 15 (ours) & 20.72 & 16.79 & 49.83 & 52.02 & 39.73 & 10.14 \\
+R0 epoch 4, VAL-selected (ours) & 19.04 & 14.85 & 30.30 & 51.76 & 37.23 & 11.36 \\
+TransVOD++ Swin-B \citep{denk2026seaclips} & 31.95 & 22.63 & 57.01 & 63.20 & 47.35 & 23.50 \\
+Def.\ DETR Swin-B \citep{denk2026seaclips} & 31.28 & 22.93 & 63.72 & 74.06 & 46.64 & 21.70 \\
+Def.\ DETR R50 \citep{denk2026seaclips} & 22.86 & 19.22 & 45.44 & 50.08 & 40.63 & 14.87 \\
+\bottomrule
+\end{tabular}}
+\end{table*}
+
+\subsection{Per-class results}
+Table~\ref{tab:perclass} gives per-class AP with the range over seeds. The tiled model is higher than every published model on BOAT, SAILING\_VESSEL, LEISURE\_VEHICLE and OBJECT, about equal on MARINE\_MARKER, and lower on SHIP. SHIP also varies most across seeds (17.6 to 42.3). On TEST, the tiled model's ANIMAL AP (39.3 to 60.7) exceeds R0's (30.2): this is why routing lowered TEST mAP, although VAL had indicated the opposite.
+
+\begin{table*}[t]
+\centering
+\caption{Per-class TEST AP@0.3. Ours: unrouted tiled model, mean and range over three seeds.}
+\label{tab:perclass}
+\small
+\resizebox{\textwidth}{!}{\begin{tabular}{lrrrrrr}
+\toprule
+Class & Ours & Range & R0 e15 (ours) & TransVOD++ & Swin-B & R50 (paper) \\
+\midrule
+BOAT & 64.2 & 63.3--64.9 & 40.4 & 48.1 & 51.7 & 37.8 \\
+SAILING\_VESSEL & 61.2 & 57.3--65.2 & 38.4 & 36.9 & 45.7 & 35.4 \\
+ANIMAL & 50.2 & 39.3--60.7 & 30.2 & 59.8 & 54.2 & 52.8 \\
+SHIP & 27.6 & 17.6--42.3 & 6.9 & 48.6 & 31.9 & 9.2 \\
+LEISURE\_VEHICLE & 25.0 & 21.1--29.3 & 12.4 & 10.6 & 16.9 & 14.2 \\
+OBJECT & 21.9 & 17.9--28.9 & 10.7 & 3.1 & 5.7 & 2.9 \\
+MARINE\_MARKER & 17.0 & 13.7--19.6 & 5.9 & 16.6 & 12.8 & 7.9 \\
+\bottomrule
+\end{tabular}}
+\end{table*}
+
+\subsection{Cost}
+Export throughput on an RTX 3060, including image decoding, was 1.92--1.97\,s per frame for the 17-tile model and 0.11--0.13\,s per frame for R50 on the full frame (about 2.05--2.10\,s per frame for the routed system). The published models run one $640\times640$ pass per frame. The accuracy gain therefore costs about 17 times the inference compute of a single-pass model of the same size.
+
+\subsection{Robustness to rain and sun flare}\label{sec:robust}
+Using the benchmark's corrupted copies of TEST, we evaluate the frozen models once per corruption with the published Albumentations \citep{buslaev2020albumentations} settings. Rain uses \emph{drizzle}, drop width 10, drop length 20 and colour (100,100,100); sun flare uses the physics-based method, flare region of interest (0, 0, 1, 0.3) and source radius 120. Each frame receives a fixed per-frame seed, so every model sees identical corrupted images. \todo{G6 results: table of routed/unrouted/R0 vs paper (R50 5.52 / 18.16; Swin-B 23.71 / 30.11; TransVOD++ 24.47 / 32.64); state the Albumentations version and that the paper's version is unknown.}

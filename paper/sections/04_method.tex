@@ -1,0 +1,34 @@
+\section{Method}\label{sec:method}
+
+Figure~\ref{fig:arch} shows the system. It changes three elements of the benchmark's Deformable-DETR R50 recipe (the backbone, the training crops and the inference scheme) and keeps the rest.
+
+\begin{figure*}[t]
+\centering
+\resizebox{\textwidth}{!}{\input{figures/architecture}}
+\caption{System overview. At inference, each frame is processed as one full-frame tile (Stage~B) and sixteen native-resolution windows (Stage~C); each tile is resized to $640\times640$ and passed through a ConvNeXt-B Deformable-DETR, and the 17 outputs are merged class-aware. In the pre-declared primary system, ANIMAL detections are taken from the full-frame R50 baseline (R0) instead; the unrouted output is a pre-declared secondary. The dashed box summarises training.}
+\label{fig:arch}
+\end{figure*}
+
+\subsection{Baseline (R0)}
+R0 reproduces the benchmark's Deformable-DETR R50 recipe:
+\begin{itemize}
+\item $640 \times 640$ input without preserving aspect ratio, four feature levels and 300 queries;
+\item AdamW with learning rate $2\times10^{-4}$ ($2\times10^{-5}$ for the backbone), weight decay $10^{-4}$ and gradient clipping at 0.1;
+\item 15 epochs at batch size 2, with the learning rate divided by 10 after epochs 11 and 14, from a COCO-trained checkpoint.
+\end{itemize}
+Our reproduction scores 20.72 (epoch 15) and 19.04 (epoch 4, selected on VAL) TEST \mapthree{}, below the published $22.86 \pm 0.91$.
+
+\subsection{Backbone}
+The ResNet-50 is replaced by ConvNeXt-B pre-trained on ImageNet-22k (\texttt{convnext\_base.fb\_in22k}, \citep{liu2022convnext,wightman2019timm}). Its four stage outputs feed rebuilt input projections; the stem and first stage are frozen. The transformer, queries and box head are initialised from the COCO checkpoint. A feasibility gate selected ConvNeXt-B as the largest backbone that fits a 12\,GB GPU at the benchmark input with batch size 2. A pilot found bf16 training 0.029 VAL mAP worse than fp32 on R50, so all runs use fp32.
+
+\subsection{Tile training}
+Each training sample is, with probability 0.5, the full frame; otherwise it is one of 16 windows of $640\times360$ pixels at native resolution, from a $4\times4$ grid. Boxes are kept if at least 50\% of their area lies inside the window and are clipped to it. The optimiser, learning-rate schedule and number of steps are those of R0.
+
+\subsection{Tiled inference}
+At inference, each frame is passed once as a whole (Stage~B) and as the 16 windows (Stage~C), each through R0's $640\times640$ transform. Per-tile detections are mapped to frame coordinates and merged class-aware by a multiscale merge with fixed default constants, no score threshold and the top 100 detections per frame.
+
+\subsection{Per-class routing}
+A gate on seed 42 found that the tiled model's ANIMAL head had collapsed on VAL (Section~\ref{sec:negative}). Following a design intent fixed before the TEST evaluation, the source of each class's detections is whichever of the tiled model and the R0 full-frame output has the higher VAL AP30, pooled over both VAL subsets and decided once on seed 42. This routed ANIMAL to R0 (VAL AP 0.116 against 0.0001) and kept the other five VAL classes with the tiled model. LEISURE\_VEHICLE, which has no VAL data, stays with the tiled model. The routed system is the pre-declared primary; the unrouted tiled model is a pre-declared secondary.
+
+\subsection{Seeds and checkpoint}
+Seeds 42, 43 and 44 differ only in the random seed, which sets the initialisation of non-transferred layers, the frame order, tile choice, flips and dropout. The final epoch (15) of each seed is used; no checkpoint is selected on VAL.
