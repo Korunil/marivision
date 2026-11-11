@@ -1,0 +1,228 @@
+--- a/models/deformable_detr.py
++++ b/models/deformable_detr.py
+@@ -111,7 +111,7 @@
+             for box_embed in self.bbox_embed:
+                 nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
+ 
+-    def forward(self, samples: NestedTensor):
++    def forward(self, samples: NestedTensor, horizons: torch.Tensor = None):
+         """ The forward expects a NestedTensor, which consists of:
+                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
+                - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
+@@ -442,7 +442,9 @@
+ 
+ 
+ def build(args):
+-    num_classes = 20 if args.dataset_file != 'coco' else 91
++    num_classes = getattr(args, "num_classes_override", None)
++    if num_classes is None:
++        num_classes = 20 if args.dataset_file != 'coco' else 91
+     if args.dataset_file == "coco_panoptic":
+         num_classes = 250
+     device = torch.device(args.device)
+@@ -458,8 +460,9 @@
+         num_feature_levels=args.num_feature_levels,
+         aux_loss=args.aux_loss,
+         with_box_refine=args.with_box_refine,
+-        two_stage=args.two_stage,
++        two_stage=args.two_stage
+     )
++
+     if args.masks:
+         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
+     matcher = build_matcher(args)
+--- a/models/ops/functions/ms_deform_attn_func.py
++++ b/models/ops/functions/ms_deform_attn_func.py
+@@ -15,28 +15,83 @@
+ from torch.autograd import Function
+ from torch.autograd.function import once_differentiable
+ 
+-import MultiScaleDeformableAttention as MSDA
++try:
++    import MultiScaleDeformableAttention as MSDA
++    MSDA_IMPORT_ERROR = None
++except ImportError as e:
++    MSDA = None
++    MSDA_IMPORT_ERROR = repr(e)
+ 
+ 
+ class MSDeformAttnFunction(Function):
++
+     @staticmethod
+-    def forward(ctx, value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, im2col_step):
++    def forward(
++        ctx,
++        value,
++        value_spatial_shapes,
++        value_level_start_index,
++        sampling_locations,
++        attention_weights,
++        im2col_step,
++    ):
++        if MSDA is None:
++            raise RuntimeError(
++                "MSDeformAttnFunction requires the native "
++                "MultiScaleDeformableAttention extension."
++            )
++
+         ctx.im2col_step = im2col_step
++
+         output = MSDA.ms_deform_attn_forward(
+-            value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, ctx.im2col_step)
+-        ctx.save_for_backward(value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights)
++            value,
++            value_spatial_shapes,
++            value_level_start_index,
++            sampling_locations,
++            attention_weights,
++            ctx.im2col_step,
++        )
++
++        ctx.save_for_backward(
++            value,
++            value_spatial_shapes,
++            value_level_start_index,
++            sampling_locations,
++            attention_weights,
++        )
++
+         return output
+ 
+     @staticmethod
+     @once_differentiable
+     def backward(ctx, grad_output):
+-        value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights = ctx.saved_tensors
++        (
++            value,
++            value_spatial_shapes,
++            value_level_start_index,
++            sampling_locations,
++            attention_weights,
++        ) = ctx.saved_tensors
++
+         grad_value, grad_sampling_loc, grad_attn_weight = \
+             MSDA.ms_deform_attn_backward(
+-                value, value_spatial_shapes, value_level_start_index, sampling_locations, attention_weights, grad_output, ctx.im2col_step)
++                value,
++                value_spatial_shapes,
++                value_level_start_index,
++                sampling_locations,
++                attention_weights,
++                grad_output,
++                ctx.im2col_step,
++            )
+ 
+-        return grad_value, None, None, grad_sampling_loc, grad_attn_weight, None
+-
++        return (
++            grad_value,
++            None,
++            None,
++            grad_sampling_loc,
++            grad_attn_weight,
++            None,
++        )
+ 
+ def ms_deform_attn_core_pytorch(value, value_spatial_shapes, sampling_locations, attention_weights):
+     # for debug and test only,
+--- a/models/ops/modules/ms_deform_attn.py
++++ b/models/ops/modules/ms_deform_attn.py
+@@ -18,7 +18,14 @@
+ import torch.nn.functional as F
+ from torch.nn.init import xavier_uniform_, constant_
+ 
+-from ..functions import MSDeformAttnFunction
++import os
++
++from ..functions.ms_deform_attn_func import (
++    MSDA,
++    MSDA_IMPORT_ERROR,
++    MSDeformAttnFunction,
++    ms_deform_attn_core_pytorch,
++)
+ 
+ 
+ def _is_power_of_2(n):
+@@ -109,7 +116,41 @@
+         else:
+             raise ValueError(
+                 'Last dim of reference_points must be 2 or 4, but get {} instead.'.format(reference_points.shape[-1]))
+-        output = MSDeformAttnFunction.apply(
+-            value, input_spatial_shapes, input_level_start_index, sampling_locations, attention_weights, self.im2col_step)
++        backend = os.environ.get("R0_MSDA_BACKEND", "cuda").lower()
++
++        if backend == "cuda":
++            if MSDA is None:
++                raise RuntimeError(
++                    "R0_MSDA_BACKEND=cuda requested, but native "
++                    "MultiScaleDeformableAttention is unavailable.\n"
++                    f"Import error: {MSDA_IMPORT_ERROR}"
++                )
++
++            output = MSDeformAttnFunction.apply(
++                value,
++                input_spatial_shapes,
++                input_level_start_index,
++                sampling_locations,
++                attention_weights,
++                self.im2col_step,
++            )
++
++        elif backend == "pytorch":
++            # IMPORTANT:
++            # Direct call — do NOT wrap this in MSDeformAttnFunction.apply().
++            # Standard PyTorch autograd handles grid_sample and all other ops.
++            output = ms_deform_attn_core_pytorch(
++                value,
++                input_spatial_shapes,
++                sampling_locations,
++                attention_weights,
++            )
++
++        else:
++            raise ValueError(
++                f"Unknown R0_MSDA_BACKEND={backend!r}. "
++                "Expected 'cuda' or 'pytorch'."
++            )
++
+         output = self.output_proj(output)
+         return output
+--- a/models/segmentation.py
++++ b/models/segmentation.py
+@@ -13,10 +13,10 @@
+ import io
+ from collections import defaultdict
+ 
++from PIL import Image
+ import torch
+ import torch.nn as nn
+ import torch.nn.functional as F
+-from PIL import Image
+ 
+ import util.box_ops as box_ops
+ from util.misc import NestedTensor, interpolate, nested_tensor_from_tensor_list
+--- a/util/misc.py
++++ b/util/misc.py
+@@ -29,7 +29,21 @@
+ import torchvision
+ if float(torchvision.__version__[:3]) < 0.5:
+     import math
+-    from torchvision.ops.misc import _NewEmptyTensorOp
++    # from torchvision.ops.misc import _NewEmptyTensorOp
++    try:
++        from torchvision.ops.misc import _NewEmptyTensorOp
++    except ImportError:
++        class _NewEmptyTensorOp(torch.autograd.Function):
++            @staticmethod
++            def forward(ctx, x, new_shape):
++                ctx.shape = new_shape
++                return x.new_empty(new_shape)
++
++            @staticmethod
++            def backward(ctx, grad):
++                shape = ctx.shape
++                return _NewEmptyTensorOp.apply(grad, shape), None
++    
+     def _check_size_scale_factor(dim, size, scale_factor):
+         # type: (int, Optional[List[int]], Optional[float]) -> None
+         if size is None and scale_factor is None:
