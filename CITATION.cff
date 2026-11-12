@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this code or these records, please cite the accompanying paper."
+title: "MARIVISION: code and experiment records"
+type: software
+authors:
+  - family-names: Korupoju
+    given-names: Anil Kumar
+    affiliation: "Research and Development Division, Indian Register of Shipping, Mumbai, India"
+repository-code: "https://github.com/korunil/marivision"
+license: Apache-2.0
+date-released: "2026-11-11"
+keywords:
+  - maritime object detection
+  - small object detection
+  - detection transformer
+  - image tiling
+  - SeaClips
+preferred-citation:
+  type: unpublished
+  title: "Resolution-preserving detection of small surface objects in maritime video: the MARIVISION detector"
+  authors:
+    - family-names: Korupoju
+      given-names: Anil Kumar
+  year: 2026
+  notes: "Manuscript under review."
